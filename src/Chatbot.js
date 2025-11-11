@@ -93,7 +93,7 @@ async function requestNextWord({ apiKey, requiredInitial, usedWords }) {
 }
 
 export function setupChatbot(mount) {
-  const apiKey = import.meta?.env?.VITE_GPT_API_KEY;
+  const apiKey = import.meta?.env?.VITE_OPENAI_API_KEY;
 
   const wrapper = createEl('div', { style: { marginTop: '24px', textAlign: 'left' } });
   const title = createEl('h2', {}, '끝말잇기 챗봇');
