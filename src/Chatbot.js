@@ -199,7 +199,7 @@ export function setupChatbot(mount) {
     const requiredInitial = lastChar(userText);
 
     if (!apiKey) {
-      renderMessage(messages, 'assistant', 'API Key가 설정되지 않았습니다. .env에 VITE_GPT_API_KEY를 설정해 주세요.');
+      renderMessage(messages, 'assistant', 'API Key가 설정되지 않았습니다. .env에 VITE_OPENAI_API_KEY를 설정해 주세요.');
       return;
     }
 
