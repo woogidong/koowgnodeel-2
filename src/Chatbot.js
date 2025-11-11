@@ -93,7 +93,9 @@ async function requestNextWord({ apiKey, requiredInitial, usedWords }) {
 }
 
 export function setupChatbot(mount) {
-  const apiKey = import.meta?.env?.VITE_OPENAI_API_KEY;
+  const apiKey =
+    import.meta?.env?.VITE_OPENAI_API_KEY ||
+    import.meta?.env?.VITE_GPT_API_KEY;
 
   const wrapper = createEl('div', { style: { marginTop: '24px', textAlign: 'left' } });
   const title = createEl('h2', {}, '끝말잇기 챗봇');
@@ -199,7 +201,11 @@ export function setupChatbot(mount) {
     const requiredInitial = lastChar(userText);
 
     if (!apiKey) {
-      renderMessage(messages, 'assistant', 'API Key가 설정되지 않았습니다. .env에 VITE_OPENAI_API_KEY를 설정해 주세요.');
+      renderMessage(
+        messages,
+        'assistant',
+        'API Key가 설정되지 않았습니다. .env에 VITE_OPENAI_API_KEY 또는 VITE_GPT_API_KEY를 설정한 뒤 개발 서버를 재시작하세요.'
+      );
       return;
     }
 
