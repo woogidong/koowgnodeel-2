@@ -1,11 +1,20 @@
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
 
-const apiKey =
-  import.meta?.env?.VITE_OPENAI_API_KEY ||
-  import.meta?.env?.VITE_GPT_API_KEY;
+// 디버깅용: 현재 로드된 Vite 환경변수 키를 콘솔에 출력
+// (빌드 산출물에는 실제 키 값이 포함되므로, 민감한 정보는 항상 .env / Netlify 환경변수로만 관리하세요)
+if (typeof import.meta !== 'undefined' && import.meta.env) {
+  // eslint-disable-next-line no-console
+  console.log(
+    '[MathChatbot] 사용 가능한 env 키:',
+    Object.keys(import.meta.env).filter((k) => k.startsWith('VITE_'))
+  );
+}
 
 export async function fetchMathDefinition(term) {
+  const apiKey =
+    import.meta?.env?.VITE_OPENAI_API_KEY ||
+    import.meta?.env?.VITE_GPT_API_KEY;
   if (!apiKey) {
     throw new Error('.env에 VITE_OPENAI_API_KEY 또는 VITE_GPT_API_KEY를 설정하고 개발 서버를 재시작하세요.');
   }
