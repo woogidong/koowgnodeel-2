@@ -1,247 +1,207 @@
-// Chatbot.js
-
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-4o-mini';
+import { fetchMathDefinition } from './api.js';
 
 function createEl(tag, attrs = {}, children = []) {
   const el = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
-    if (k === 'class') {
-      el.className = v;
-    } else if (k === 'style' && typeof v === 'object') {
-      Object.assign(el.style, v);
-    } else {
-      el.setAttribute(k, v);
-    }
+    if (k === 'class') el.className = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else el.setAttribute(k, v);
   });
-  const list = Array.isArray(children) ? children : [children];
-  list.forEach((child) => {
+  const arr = Array.isArray(children) ? children : [children];
+  arr.forEach((child) => {
     if (typeof child === 'string') el.appendChild(document.createTextNode(child));
     else if (child) el.appendChild(child);
   });
   return el;
 }
 
-function lastChar(text) {
-  if (!text) return '';
-  const trimmed = text.trim();
-  return trimmed[trimmed.length - 1] || '';
-}
-
-function renderMessage(container, role, text) {
-  const bubble = createEl('div', {
-    class: `cb-bubble ${role}`,
+function createSkeleton() {
+  const holder = createEl('div', {
+    class: 'skeleton',
     style: {
-      maxWidth: '80%',
-      padding: '10px 12px',
-      borderRadius: '10px',
-      margin: '6px 0',
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
-      backgroundColor: role === 'user' ? '#1a1a1a' : '#2d2d2d',
-      color: '#fff',
-      alignSelf: role === 'user' ? 'flex-end' : 'flex-start',
-      border: role === 'user' ? '1px solid #646cff' : '1px solid #3a3a3a'
+      width: '100%',
+      height: '14px',
+      backgroundColor: '#2e2e2e',
+      borderRadius: '4px',
+      marginBottom: '8px'
     }
-  }, text);
-  container.appendChild(bubble);
-  container.scrollTop = container.scrollHeight;
-}
-
-async function requestNextWord({ apiKey, requiredInitial, usedWords }) {
-  const system = [
-    '너는 한국어 끝말잇기 도우미야.',
-    '규칙:',
-    '- 사용자가 낸 마지막 단어의 마지막 글자로 시작하는 단어만 제시해.',
-    '- 이미 사용된 단어(중복)는 절대 제시하지 마.',
-    '- 고유명사/비속어/외래어 남발 금지, 일반 명사 우선.',
-    '- 모호하면 더 흔한 일반 명사를 선택.',
-    '- 불가능하면 "없음" 한 단어만 출력.',
-    '출력 형식: 반드시 한 단어만. 설명/문장/마침표 금지.'
-  ].join('\n');
-
-  const user = [
-    `시작 글자: ${requiredInitial}`,
-    `이미 사용된 단어: ${usedWords.join(', ') || '없음'}`
-  ].join('\n');
-
-  const res = await fetch(OPENAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ]
-    })
   });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`OpenAI API 오류: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('응답 파싱 실패');
-  return text.replace(/\s+/g, ''); // 안전하게 공백 제거
+  return holder;
 }
 
 export function setupChatbot(mount) {
-  const apiKey =
-    import.meta?.env?.VITE_OPENAI_API_KEY ||
-    import.meta?.env?.VITE_GPT_API_KEY;
-
-  const wrapper = createEl('div', { style: { marginTop: '24px', textAlign: 'left' } });
-  const title = createEl('h2', {}, '끝말잇기 챗봇');
-
-  const panel = createEl('div', {
+  const wrapper = createEl('div', {
     style: {
-      display: 'flex',
-      flexDirection: 'column',
-      border: '1px solid #3a3a3a',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      backgroundColor: '#1e1e1e'
+      marginTop: '24px',
+      textAlign: 'left',
+      color: '#f2f2f2'
     }
   });
 
-  const messages = createEl('div', {
-    id: 'cb-messages',
+  const title = createEl('h2', {}, '수학 용어 정의 챗봇');
+  const subtitle = createEl('p', {
+    style: { color: '#b4b4b4', marginTop: '-12px' }
+  }, '수학 용어를 입력하면 정의와 예시를 알려드려요.');
+
+  const panel = createEl('div', {
     style: {
+      border: '1px solid #343434',
+      borderRadius: '16px',
+      backgroundColor: '#1b1b1b',
+      overflow: 'hidden',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+    }
+  });
+
+  const output = createEl('div', {
+    id: 'math-output',
+    style: {
+      minHeight: '220px',
+      padding: '20px',
       display: 'flex',
       flexDirection: 'column',
-      height: '360px',
-      overflowY: 'auto',
-      padding: '12px',
-      gap: '6px'
+      gap: '12px'
     }
   });
 
   const controls = createEl('div', {
     style: {
       display: 'flex',
-      gap: '8px',
-      padding: '12px',
-      borderTop: '1px solid #3a3a3a',
-      alignItems: 'center',
-      backgroundColor: '#272727'
+      gap: '10px',
+      padding: '16px',
+      borderTop: '1px solid #343434',
+      backgroundColor: '#232323'
     }
   });
 
   const input = createEl('input', {
     type: 'text',
-    placeholder: '단어를 입력하세요 (예: 사과)',
+    placeholder: '예: 미분, 행렬식, 확률 변수',
     style: {
-      flex: '1',
-      padding: '10px 12px',
-      borderRadius: '8px',
+      flex: 1,
+      padding: '12px 14px',
+      borderRadius: '10px',
       border: '1px solid #3a3a3a',
-      backgroundColor: '#1a1a1a',
-      color: '#fff'
+      backgroundColor: '#151515',
+      color: '#fefefe'
     }
   });
 
-  const sendBtn = createEl('button', { type: 'button' }, '전송');
-  const resetBtn = createEl('button', { type: 'button', style: { backgroundColor: '#2a2a2a' } }, '새 게임');
+  const button = createEl('button', {
+    type: 'button',
+    style: {
+      padding: '12px 18px',
+      borderRadius: '10px',
+      border: 'none',
+      backgroundColor: '#646cff',
+      color: '#fff',
+      fontWeight: '600',
+      cursor: 'pointer'
+    }
+  }, '검색');
+
+  const status = createEl('span', {
+    style: {
+      marginLeft: 'auto',
+      color: '#9c9c9c',
+      fontSize: '0.9rem'
+    }
+  });
 
   controls.appendChild(input);
-  controls.appendChild(sendBtn);
-  controls.appendChild(resetBtn);
+  controls.appendChild(button);
+  controls.appendChild(status);
 
-  panel.appendChild(messages);
+  panel.appendChild(output);
   panel.appendChild(controls);
 
   wrapper.appendChild(title);
+  wrapper.appendChild(subtitle);
   wrapper.appendChild(panel);
   mount.appendChild(wrapper);
 
-  let usedWords = [];
-  let waiting = false;
-
-  function resetGame() {
-    usedWords = [];
-    messages.innerHTML = '';
-    renderMessage(messages, 'assistant', '끝말잇기를 시작합니다. 아무 단어나 먼저 입력해 주세요!');
-    input.value = '';
-    input.focus();
+  function setLoading(isLoading) {
+    status.textContent = isLoading ? '검색 중...' : '';
+    button.disabled = isLoading;
+    button.style.opacity = isLoading ? '0.6' : '1';
   }
 
-  function validateNextWord(prev, next) {
-    if (!next) return { ok: false, reason: '단어가 비어 있어요.' };
-    if (/\s/.test(next)) return { ok: false, reason: '공백 없이 한 단어만 입력하세요.' };
-    if (usedWords.includes(next)) return { ok: false, reason: '이미 사용된 단어예요.' };
-    if (!prev) return { ok: true };
-    const need = lastChar(prev);
-    if (next[0] !== need) return { ok: false, reason: `시작 글자는 "${need}" 이어야 해요.` };
-    return { ok: true };
+  function renderResult({ term, definition, example }) {
+    output.innerHTML = '';
+    const termLabel = createEl('div', {
+      style: { fontSize: '1.1rem', fontWeight: '600', color: '#dcdcdc' }
+    }, `용어: ${term}`);
+
+    const defBlock = createEl('div', {}, [
+      createEl('h3', {
+        style: { marginBottom: '6px', fontSize: '1rem', color: '#9fd6ff' }
+      }, '정의'),
+      createEl('p', {
+        style: { margin: 0, lineHeight: '1.5' }
+      }, definition)
+    ]);
+
+    const exBlock = createEl('div', {}, [
+      createEl('h3', {
+        style: { marginBottom: '6px', fontSize: '1rem', color: '#9fd6ff' }
+      }, '사용 예시'),
+      createEl('p', {
+        style: { margin: 0, lineHeight: '1.5' }
+      }, example)
+    ]);
+
+    output.appendChild(termLabel);
+    output.appendChild(defBlock);
+    output.appendChild(exBlock);
   }
 
-  async function onSend() {
-    if (waiting) return;
-    const userText = input.value.trim();
-    if (!userText) return;
+  function renderPlaceholder() {
+    output.innerHTML = '';
+    output.appendChild(createEl('p', {
+      style: { color: '#bfbfbf' }
+    }, '수학 용어를 입력해 정의와 예시를 확인해 보세요.'));
+  }
 
-    const prev = usedWords[usedWords.length - 1] || '';
-    const check = validateNextWord(prev, userText);
-    if (!check.ok) {
-      renderMessage(messages, 'assistant', check.reason);
+  function renderError(message) {
+    output.innerHTML = '';
+    output.appendChild(createEl('p', {
+      style: { color: '#ff8a8a' }
+    }, message));
+  }
+
+  function renderLoadingSkeleton() {
+    output.innerHTML = '';
+    const skeletons = createEl('div', { style: { width: '100%' } });
+    for (let i = 0; i < 4; i++) {
+      skeletons.appendChild(createSkeleton());
+    }
+    output.appendChild(skeletons);
+  }
+
+  async function searchTerm() {
+    const term = input.value.trim();
+    if (!term) {
+      renderError('검색할 수학 용어를 입력해 주세요.');
       return;
     }
-
-    renderMessage(messages, 'user', userText);
-    usedWords.push(userText);
-    input.value = '';
-
-    const requiredInitial = lastChar(userText);
-
-    if (!apiKey) {
-      renderMessage(
-        messages,
-        'assistant',
-        'API Key가 설정되지 않았습니다. .env에 VITE_OPENAI_API_KEY 또는 VITE_GPT_API_KEY를 설정한 뒤 개발 서버를 재시작하세요.'
-      );
-      return;
-    }
-
-    waiting = true;
+    setLoading(true);
+    renderLoadingSkeleton();
     try {
-      const next = await requestNextWord({ apiKey, requiredInitial, usedWords });
-      if (next === '없음') {
-        renderMessage(messages, 'assistant', '제가 졌어요! 새 게임을 시작해 볼까요?');
-        return;
-      }
-      const dup = usedWords.includes(next);
-      const need = requiredInitial;
-      const validStart = next && next[0] === need;
-      if (dup || !validStart) {
-        renderMessage(messages, 'assistant', `규칙 위반 단어가 나왔어요: "${next}". 다시 시도해 주세요.`);
-        return;
-      }
-      usedWords.push(next);
-      renderMessage(messages, 'assistant', next);
-    } catch (e) {
-      renderMessage(messages, 'assistant', `오류가 발생했어요: ${e.message}`);
+      const { definition, example } = await fetchMathDefinition(term);
+      renderResult({ term, definition, example });
+    } catch (err) {
+      renderError(err.message);
     } finally {
-      waiting = false;
-      input.focus();
+      setLoading(false);
     }
   }
 
-  sendBtn.addEventListener('click', onSend);
+  button.addEventListener('click', searchTerm);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') onSend();
+    if (e.key === 'Enter') searchTerm();
   });
-  resetBtn.addEventListener('click', resetGame);
 
-  resetGame();
+  renderPlaceholder();
 }
 
 export default { setupChatbot };
-
-

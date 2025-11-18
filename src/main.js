@@ -2,7 +2,7 @@ import './style.css'
 import javascriptLogo from './javascript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.js'
-import { setupChatbot } from './Chatbot.js'
+import { setupChatbot } from './chatbot.js'
 
 document.querySelector('#app').innerHTML = `
   <div>
